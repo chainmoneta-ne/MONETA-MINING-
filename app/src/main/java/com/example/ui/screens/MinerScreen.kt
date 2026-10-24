@@ -21,6 +21,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.MonetaViewModel
+import com.example.ui.components.CircularMiningProgressIndicator
+import com.example.ui.components.HashRateTelemetryCard
 import com.example.ui.theme.*
 import java.util.Locale
 
@@ -78,7 +80,82 @@ fun MinerScreen(viewModel: MonetaViewModel) {
             }
         }
         
-        // Status Card
+        // 3. Central Circular Mining Progress & Hash Rate Progression Component
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .shadow(12.dp, MaterialTheme.shapes.medium)
+                .border(
+                    1.dp,
+                    if (uiState.isMining || uiState.autoMiningActive) MonetaEmeraldGreen.copy(alpha = 0.6f) else MonetaGraphiteGray,
+                    MaterialTheme.shapes.medium
+                ),
+            colors = CardDefaults.cardColors(containerColor = MonetaCharcoalBlack)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                val baseHashRate = 28.5 * uiState.minerLevel
+                val boostMultiplier = (if (uiState.activeBoosters.contains("PRO BOOST")) 5.0 else if (uiState.activeBoosters.contains("2X MULTIPLIER")) 2.0 else 1.0) * (if (uiState.autoMiningActive) 1.5 else 1.0)
+                val minedSoFar = uiState.sessionProgress * (100.0 * uiState.idleMultiplier * (if (uiState.activeBoosters.contains("PRO BOOST")) 5.0 else 1.0))
+
+                CircularMiningProgressIndicator(
+                    isMining = uiState.isMining,
+                    autoMiningActive = uiState.autoMiningActive,
+                    sessionCompleted = uiState.sessionCompleted,
+                    progress = uiState.sessionProgress,
+                    remainingSeconds = uiState.sessionRemainingSeconds,
+                    baseHashRate = baseHashRate,
+                    multiplier = boostMultiplier,
+                    minedSoFar = minedSoFar,
+                    onStartMiningClick = {
+                        if (!uiState.isMining && !uiState.autoMiningActive && !uiState.sessionCompleted) {
+                            viewModel.startMiningSession()
+                        }
+                    }
+                )
+
+                if (uiState.sessionCompleted) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { viewModel.acknowledgeSessionCompletion(context) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MonetaEmeraldGreen,
+                            contentColor = MonetaCharcoalBlack
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth(0.8f)
+                            .height(48.dp)
+                            .testTag("claim_mining_reward_button")
+                    ) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = "Claim")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("CLAIM REWARD", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // 4. Live Hash Rate Telemetry Strip
+        val activeHashRate = if (uiState.isMining || uiState.autoMiningActive) {
+            val boostMult = (if (uiState.activeBoosters.contains("PRO BOOST")) 5.0 else if (uiState.activeBoosters.contains("2X MULTIPLIER")) 2.0 else 1.0) * (if (uiState.autoMiningActive) 1.5 else 1.0)
+            28.5 * uiState.minerLevel * boostMult
+        } else {
+            0.0
+        }
+        
+        HashRateTelemetryCard(
+            isMining = uiState.isMining,
+            autoMiningActive = uiState.autoMiningActive,
+            hashRate = activeHashRate,
+            activeBoosters = uiState.activeBoosters
+        )
+
+        // 5. Mining Status Details Card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -127,68 +204,14 @@ fun MinerScreen(viewModel: MonetaViewModel) {
             }
         }
 
-        // Progress Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .shadow(8.dp, MaterialTheme.shapes.medium),
-            colors = CardDefaults.cardColors(containerColor = MonetaGraphiteGray)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (uiState.sessionCompleted) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = "Complete", tint = MonetaEmeraldGreen, modifier = Modifier.size(64.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("MINING SESSION COMPLETE ✓", style = MaterialTheme.typography.titleLarge, color = MonetaEmeraldGreen, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.acknowledgeSessionCompletion(context) },
-                        colors = ButtonDefaults.buttonColors(containerColor = MonetaElectricBlue)
-                    ) {
-                        Text("CONTINUE")
-                    }
-                } else if (uiState.isMining) {
-                    Text("SESSION PROGRESS", color = MonetaSilver)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    val pct = (uiState.sessionProgress * 100).toInt()
-                    Text("${pct}%", style = MaterialTheme.typography.headlineMedium, color = MonetaWhite, fontWeight = FontWeight.Bold)
-                    
-                    LinearProgressIndicator(
-                        progress = { uiState.sessionProgress },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp).height(12.dp),
-                        color = MonetaElectricBlue,
-                        trackColor = MonetaCharcoalBlack
-                    )
-                    
-                    val hours = uiState.sessionRemainingSeconds / 3600
-                    val minutes = (uiState.sessionRemainingSeconds % 3600) / 60
-                    val seconds = uiState.sessionRemainingSeconds % 60
-                    Text("TIME REMAINING", color = MonetaSilver, style = MaterialTheme.typography.labelMedium)
-                    Text(String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds), color = MonetaWhite, fontWeight = FontWeight.Bold)
-                } else if (uiState.autoMiningActive) {
-                    Icon(Icons.Filled.PlayArrow, contentDescription = "Auto", tint = MonetaElectricBlue, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("AUTO-MINING IN PROGRESS", style = MaterialTheme.typography.titleMedium, color = MonetaElectricBlue, fontWeight = FontWeight.Bold)
-                    Text("Your protocol rewards are credited automatically.", color = MonetaSilver, style = MaterialTheme.typography.bodySmall)
-                } else {
-                    Text("START A NEW MINING SESSION", color = MonetaSilver)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (!uiState.isMining && !uiState.sessionCompleted && !uiState.autoMiningActive) {
             Button(
                 onClick = { viewModel.startMiningSession() },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(64.dp)
+                    .height(60.dp)
                     .testTag("start_mining_button"),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MonetaEmeraldGreen,
