@@ -5,6 +5,8 @@ import { MinerScreen } from './screens/MinerScreen';
 import { BoostScreen } from './screens/BoostScreen';
 import { FriendsScreen } from './screens/FriendsScreen';
 import { WalletScreen } from './screens/WalletScreen';
+import { AnnouncementsScreen } from './screens/AnnouncementsScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { TrustWalletModal } from './components/TrustWalletModal';
 import { 
@@ -19,9 +21,13 @@ import {
 } from './services/storage';
 import { UserProfile, ReferralRecord, LeaderboardEntry, Transaction, TelemetryState } from './types';
 
+export type AppView = NavTab | 'announcements' | 'settings';
+
 export const App: React.FC = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [currentTab, setCurrentTab] = useState<NavTab>('miner');
+  const [activeView, setActiveView] = useState<AppView>('miner');
+  const [lastTab, setLastTab] = useState<NavTab>('miner');
+
   const [user, setUser] = useState<UserProfile>(loadUserProfile);
   const [referrals, setReferrals] = useState<ReferralRecord[]>(loadReferrals);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(loadLeaderboard);
@@ -41,6 +47,31 @@ export const App: React.FC = () => {
     fanSpeedPercent: 65,
     difficulty: '4.29G'
   });
+
+  // Handle SPA routing & browser back/forward buttons
+  useEffect(() => {
+    const handleLocationChange = () => {
+      const hash = window.location.hash.replace('#', '') as AppView;
+      if (['miner', 'boost', 'friends', 'wallet', 'announcements', 'settings'].includes(hash)) {
+        setActiveView(hash);
+        if (['miner', 'boost', 'friends', 'wallet'].includes(hash)) {
+          setLastTab(hash as NavTab);
+        }
+      }
+    };
+
+    handleLocationChange();
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  const navigateTo = (view: AppView) => {
+    setActiveView(view);
+    if (['miner', 'boost', 'friends', 'wallet'].includes(view)) {
+      setLastTab(view as NavTab);
+    }
+    window.history.pushState(null, '', `#${view}`);
+  };
 
   // Save changes to storage
   useEffect(() => {
@@ -130,7 +161,7 @@ export const App: React.FC = () => {
     setIsSyncing(true);
     setTimeout(() => {
       setIsSyncing(false);
-      showNotice('Synchronized with Moneta Blake3 consensus.');
+      showNotice('Synchronized with Moneta consensus.');
     }, 1000);
   };
 
@@ -325,12 +356,20 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0e1117] text-[#f1f5f9] flex flex-col font-sans">
-      {/* Top Bar with Live Balance */}
-      <TopBar user={user} isSyncing={isSyncing} onSync={handleSync} />
+      {/* Top Bar with Live Balance & Announcements/Settings actions */}
+      <TopBar
+        user={user}
+        isSyncing={isSyncing}
+        onSync={handleSync}
+        onOpenAnnouncements={() => navigateTo('announcements')}
+        onOpenSettings={() => navigateTo('settings')}
+        currentView={activeView}
+        onBack={() => navigateTo(lastTab)}
+      />
 
       {/* Main Container */}
       <main className="app-container flex-1">
-        {currentTab === 'miner' && (
+        {activeView === 'miner' && (
           <MinerScreen
             user={user}
             telemetry={telemetry}
@@ -340,7 +379,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {currentTab === 'boost' && (
+        {activeView === 'boost' && (
           <BoostScreen
             user={user}
             onActivateBoost={handleActivateBoost}
@@ -348,7 +387,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {currentTab === 'friends' && (
+        {activeView === 'friends' && (
           <FriendsScreen
             user={user}
             referrals={referrals}
@@ -358,7 +397,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {currentTab === 'wallet' && (
+        {activeView === 'wallet' && (
           <WalletScreen
             user={user}
             transactions={transactions}
@@ -369,12 +408,26 @@ export const App: React.FC = () => {
             onShowNotice={showNotice}
           />
         )}
+
+        {activeView === 'announcements' && (
+          <AnnouncementsScreen onBack={() => navigateTo(lastTab)} />
+        )}
+
+        {activeView === 'settings' && (
+          <SettingsScreen
+            user={user}
+            onBack={() => navigateTo(lastTab)}
+            onDisconnectWallet={handleDisconnectWallet}
+            onLogout={() => setIsAuthenticated(false)}
+            onShowNotice={showNotice}
+          />
+        )}
       </main>
 
       {/* Bottom Navigation */}
       <BottomNav
-        currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        currentTab={lastTab}
+        onSelectTab={(tab) => navigateTo(tab)}
         friendsNotificationCount={referrals.filter((r) => r.status === 'QUALIFICATION_PENDING').length}
       />
 

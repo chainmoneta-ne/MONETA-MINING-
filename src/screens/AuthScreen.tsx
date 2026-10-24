@@ -4,15 +4,14 @@ import {
   Mail, 
   Smartphone, 
   User, 
-  Key, 
   Gift, 
-  ShieldCheck, 
   Wallet,
   ArrowRight,
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import { OtpModal } from '../components/OtpModal';
+import { OrigamiCubeLoader } from '../components/OrigamiCubeLoader';
 
 interface AuthScreenProps {
   onLoginSuccess: (userData: { username: string; email: string; phone: string; monetaId: string }) => void;
@@ -28,11 +27,13 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [email, setEmail] = useState('miner@moneta.network');
   const [phone, setPhone] = useState('+1 (555) 019-2834');
   const [password, setPassword] = useState('••••••••');
+  const [confirmPassword, setConfirmPassword] = useState('••••••••');
   const [referralCode, setReferralCode] = useState('MNT-8K4P7Q2X');
 
   const [isPhoneVerified, setIsPhoneVerified] = useState(false);
   const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,12 +45,21 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       return;
     }
 
-    onLoginSuccess({
-      username: username.startsWith('@') ? username : `@${username}`,
-      email,
-      phone,
-      monetaId: 'MNT-' + Math.random().toString(36).substring(2, 10).toUpperCase()
-    });
+    if (isSignUp && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setIsConnecting(true);
+    setTimeout(() => {
+      setIsConnecting(false);
+      onLoginSuccess({
+        username: username.startsWith('@') ? username : `@${username}`,
+        email,
+        phone,
+        monetaId: 'MNT-' + Math.random().toString(36).substring(2, 10).toUpperCase()
+      });
+    }, 1500);
   };
 
   return (
@@ -76,7 +86,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         <div className="flex bg-[#1c2230] p-1 rounded-xl border border-[#262f42] mb-6">
           <button
             type="button"
-            onClick={() => setIsSignUp(false)}
+            onClick={() => {
+              setIsSignUp(false);
+              setError(null);
+            }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
               !isSignUp ? 'bg-[#00e5ff] text-[#0e1117] shadow-sm' : 'text-[#94a3b8] hover:text-white'
             }`}
@@ -85,7 +98,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => setIsSignUp(true)}
+            onClick={() => {
+              setIsSignUp(true);
+              setError(null);
+            }}
             className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
               isSignUp ? 'bg-[#00e5ff] text-[#0e1117] shadow-sm' : 'text-[#94a3b8] hover:text-white'
             }`}
@@ -198,6 +214,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           {isSignUp && (
             <div>
               <label className="text-[11px] font-bold text-[#94a3b8] uppercase block mb-1">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-[#94a3b8] absolute left-3 top-3" />
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-[#1c2230] border border-[#262f42] rounded-xl pl-9 pr-3 py-2.5 text-xs text-[#f1f5f9] outline-none focus:border-[#00e5ff]"
+                />
+              </div>
+            </div>
+          )}
+
+          {isSignUp && (
+            <div>
+              <label className="text-[11px] font-bold text-[#94a3b8] uppercase block mb-1">
                 Referral Code (Optional)
               </label>
               <div className="relative">
@@ -253,6 +288,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           setError(null);
         }}
       />
+
+      {/* 3D Isometric Origami Loader during authentication */}
+      {isConnecting && (
+        <OrigamiCubeLoader
+          size={80}
+          text="Connecting to MONETA CHAIN..."
+          fullScreen={true}
+        />
+      )}
     </div>
   );
 };
